@@ -1,0 +1,57 @@
+resource "null_resource" "authenticated-emails" {
+  triggers = {
+    template = local.templates.authenticated-emails
+  }
+  provisioner "local-exec" {
+    command = "echo \"${local.templates.authenticated-emails}\" > ${path.module}/rendered/authenticated-emails.txt"
+  }
+}
+
+resource "docker_image" "image" {
+  name = "quay.io/oauth2-proxy/oauth2-proxy:latest"
+}
+
+resource "docker_container" "oauth2" {
+  name    = local.name
+  image   = docker_image.image.latest
+  command = local.commands
+  env     = local.envars
+  dynamic "labels" {
+    for_each = var.labels
+    content {
+      label = replace(labels.key, "PLACEHOLDER_KEY", local.name)
+      value = tobool(
+        labels.value == "traefik.enable" || labels.value != "traefik.http.routers.${lower(local.name)}.service" || replace(
+          labels.value,
+          "Host(",
+          ""
+        ) == labels.value
+        ) ? replace(replace(labels.value, local.name, var.name), "PLACEHOLDER_KEY", local.name
+      ) : labels.value
+    }
+  }
+  dynamic "labels" {
+    for_each = {
+      "traefik.http.routers.${lower(local.name)}.rule" : "Host(${join(",", formatlist("`%s`", [for i in tolist(try(var.cnames, [var.name])) : join(".", [i, var.domain])]))})",
+      "traefik.http.routers.${lower(local.name)}.service" : local.name,
+      "traefik.http.services.${lower(local.name)}.loadbalancer.server.port" : var.okta.oauth_port,
+      "traefik.http.middlewares.${lower(local.name)}.headers.sslhost" : join(",", formatlist("`%s`", [for i in tolist(try(var.cnames, [var.name])) : join(".", [i, var.domain])]))
+    }
+    content {
+      label = labels.key
+      value = labels.value
+    }
+  }
+  volumes {
+    read_only      = true
+    host_path      = abspath("${path.module}/rendered/authenticated-emails.txt")
+    container_path = "/authenticated-emails.txt"
+  }
+  networks_advanced {
+    name = data.docker_network.backend.name
+  }
+  networks_advanced {
+    name = data.docker_network.frontend.name
+  }
+  depends_on = [null_resource.authenticated-emails]
+}
