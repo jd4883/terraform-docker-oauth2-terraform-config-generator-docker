@@ -16,6 +16,9 @@ resource "docker_container" "oauth2" {
   image   = docker_image.image.latest
   command = local.commands
   env     = local.envars
+  lifecycle {
+    ignore_changes  = [user]
+  }
   dynamic "labels" {
     for_each = var.labels
     content {
