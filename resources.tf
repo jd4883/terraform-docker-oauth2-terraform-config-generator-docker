@@ -39,7 +39,7 @@ resource "docker_container" "oauth2" {
       "traefik.http.routers.${lower(local.name)}.service" : local.name,
       "traefik.http.services.${lower(local.name)}.loadbalancer.server.port" : var.okta.oauth_port,
       "traefik.http.middlewares.${lower(local.name)}.headers.sslhost" : join(",", formatlist("`%s`", [for i in tolist(try(var.cnames, [var.name])) : join(".", [i, var.domain])])),
-      "traefik.http.middlewares.${lower(each.key)}-compression.compress" : false,
+      "traefik.http.middlewares.${lower(local.name)}-compression.compress" : false
     }
     content {
       label = labels.key
