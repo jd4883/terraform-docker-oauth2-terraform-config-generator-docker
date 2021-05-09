@@ -48,7 +48,7 @@ resource "docker_container" "oauth2" {
   dynamic "networks_advanced" {
     for_each = toset([data.docker_network.backend.name, data.docker_network.frontend.name])
     content {
-      name = data.docker_network.backend.name
+      name = networks_advanced.value
     }
   }
   depends_on = [null_resource.authenticated-emails]
